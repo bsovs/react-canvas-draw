@@ -186,7 +186,7 @@ export default class extends PureComponent {
   getSaveData = () => {
     // Construct and return the stringified saveData object
     return JSON.stringify({
-      lines: this.lines,
+      lines: [...this.lines, {points: [...this.points], brushColor: this.props.brushColor, brushRadius: this.props.brushRadius}],
       width: this.props.canvasWidth,
       height: this.props.canvasHeight
     });
@@ -200,7 +200,8 @@ export default class extends PureComponent {
     const { lines, width, height } = JSON.parse(saveData);
 
     if (!lines || typeof lines.push !== "function") {
-      throw new Error("saveData.lines needs to be an array!");
+      console.log(new Error("saveData.lines needs to be an array!"));
+      return;
     }
 
     this.clear();
@@ -388,6 +389,9 @@ export default class extends PureComponent {
   };
 
   drawPoints = ({ points, brushColor, brushRadius }) => {
+
+    if (points.length < 2) return;
+
     this.ctx.temp.lineJoin = "round";
     this.ctx.temp.lineCap = "round";
     this.ctx.temp.strokeStyle = brushColor;
@@ -419,6 +423,8 @@ export default class extends PureComponent {
     // the bezier control point
     this.ctx.temp.lineTo(p1.x, p1.y);
     this.ctx.temp.stroke();
+
+    this.triggerOnChange();
   };
 
   saveLine = ({ brushColor, brushRadius } = {}) => {
@@ -465,6 +471,8 @@ export default class extends PureComponent {
       this.canvas.temp.width,
       this.canvas.temp.height
     );
+
+    this.triggerOnChange();
   };
 
   loop = ({ once = false } = {}) => {
