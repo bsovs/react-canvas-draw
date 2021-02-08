@@ -22,10 +22,10 @@ class Demo extends Component {
     }, 2000);
   }
 
-    handleChange = (ref) => {
-      console.log(ref.getSaveData())
+    handleChange = (ref, reason) => {
+      console.log(ref.getUpdateData(), reason)
         this.setState({
-            socket: ref.getSaveData()
+            socket: {drawing_data: ref.getUpdateData(), update_reason: reason},
         });
     }
 
@@ -55,7 +55,7 @@ class Demo extends Component {
               </button>
               <button
                   onClick={() => {
-                      this.saveableCanvas.clear();
+                      this.saveableCanvas.clearCanvas();
                   }}
               >
                   Clear
@@ -113,7 +113,7 @@ class Demo extends Component {
               hideGrid
               immediateLoading={true}
               ref={canvasDraw => (this.loadableCanvas = canvasDraw)}
-              saveData={this.state.socket}
+              updateData={this.state.socket}
           />
 
         <h2>Custom Brush-Color</h2>
@@ -175,12 +175,6 @@ class Demo extends Component {
           calling `loadSaveData()` on the component's reference or passing it
           the `saveData` prop:
         </button>
-        <CanvasDraw
-          disabled
-          hideGrid
-          ref={canvasDraw => (this.loadableCanvas = canvasDraw)}
-          saveData={localStorage.getItem("savedDrawing")}
-        />
         <p>
           The saving & loading also takes different dimensions into account.
           Change the width & height, draw something and save it and then load it

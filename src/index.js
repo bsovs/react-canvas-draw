@@ -59,6 +59,7 @@ export default class extends PureComponent {
     disabled: PropTypes.bool,
     imgSrc: PropTypes.string,
     saveData: PropTypes.string,
+    updateData: PropTypes.string,
     immediateLoading: PropTypes.bool,
     hideInterface: PropTypes.bool
   };
@@ -78,6 +79,7 @@ export default class extends PureComponent {
     disabled: false,
     imgSrc: "",
     saveData: "",
+    updateData: "",
     immediateLoading: false,
     hideInterface: false
   };
@@ -136,6 +138,8 @@ export default class extends PureComponent {
       // Load saveData from prop if it exists
       if (this.props.saveData) {
         this.loadSaveData(this.props.saveData);
+      } else if (this.props.updateData) {
+        this.loadUpdateData(this.props.updateData);
       }
     }, 100);
   }
@@ -149,6 +153,10 @@ export default class extends PureComponent {
 
     if (prevProps.saveData !== this.props.saveData) {
       this.loadSaveData(this.props.saveData);
+    }
+
+    if (prevProps.updateData !== this.props.updateData) {
+      this.loadUpdateData(this.props.updateData);
     }
 
     if (JSON.stringify(prevProps) !== JSON.stringify(this.props)) {
@@ -180,17 +188,92 @@ export default class extends PureComponent {
     const lines = this.lines.slice(0, -1);
     this.clear();
     this.simulateDrawingLines({ lines, immediate: true });
-    this.triggerOnChange();
+    this.triggerOnChange("UNDO");
   };
 
   getSaveData = () => {
     // Construct and return the stringified saveData object
     return JSON.stringify({
-      lines: [...this.lines, {points: [...this.points], brushColor: this.props.brushColor, brushRadius: this.props.brushRadius}],
+      lines: this.lines,
       width: this.props.canvasWidth,
       height: this.props.canvasHeight
     });
   };
+
+  getUpdateData = () => {
+    // Construct and return the stringified saveData object
+    return JSON.stringify({
+      line: {points: [...this.points], brushColor: this.props.brushColor, brushRadius: this.props.brushRadius},
+      width: this.props.canvasWidth,
+      height: this.props.canvasHeight
+    });
+  };
+
+  loadUpdateData = (updateData) => {
+    switch (updateData.update_reason) {
+      case "DRAW_END":
+        this.saveLine({brushColor: this.brushColor, brushRadius: this.brushRadius})
+        break;
+      case "DRAW":
+        if (typeof updateData.drawing_data !== "string") {
+          throw new Error("saveData needs to be of type string!");
+        }
+        this.drawUpdate(JSON.parse(updateData.drawing_data))
+        break;
+      case "CLEAR":
+        this.clearCanvas()
+        break;
+      case "UNDO":
+        this.undo()
+        break;
+      default:
+        return;
+    }
+  }
+
+  drawUpdate = ({ line, width, height }) => {
+    if (
+        width === this.props.canvasWidth &&
+        height === this.props.canvasHeight
+    ) {
+      const {points, brushColor, brushRadius} = line;
+      // Draw current points
+      this.drawPoints({
+        points: points,
+        brushColor: brushColor,
+        brushRadius: brushRadius
+      });
+      // Save line with the drawn points
+      this.points = points;
+      this.brushColor = brushColor;
+      this.brushRadius = brushRadius;
+    } else {
+      // we need to rescale the lines based on saved & current dimensions
+      const scaleX = this.props.canvasWidth / width;
+      const scaleY = this.props.canvasHeight / height;
+      const scaleAvg = (scaleX + scaleY) / 2;
+
+      const {points, brushColor, brushRadius} =
+          {
+            ...line,
+            points: line.points.map(p => ({
+              x: p.x * scaleX,
+              y: p.y * scaleY
+            })),
+            brushRadius: line.brushRadius * scaleAvg
+          };
+      // Draw current points
+      this.drawPoints({
+        points: points,
+        brushColor: brushColor,
+        brushRadius: brushRadius
+      });
+      // Save line with the drawn points
+      this.points = points;
+      this.brushColor = brushColor;
+      this.brushRadius = brushRadius;
+    }
+  }
 
   loadSaveData = (saveData, immediate = this.props.immediateLoading) => {
     if (typeof saveData !== "string") {
@@ -424,7 +507,7 @@ export default class extends PureComponent {
     this.ctx.temp.lineTo(p1.x, p1.y);
     this.ctx.temp.stroke();
 
-    this.triggerOnChange();
+    this.triggerOnChange("DRAW");
   };
 
   saveLine = ({ brushColor, brushRadius } = {}) => {
@@ -449,12 +532,17 @@ export default class extends PureComponent {
     // Clear the temporary line-drawing canvas
     this.ctx.temp.clearRect(0, 0, width, height);
 
-    this.triggerOnChange();
+    this.triggerOnChange("DRAW_END");
   };
 
-  triggerOnChange = () => {
-    this.props.onChange && this.props.onChange(this);
+  triggerOnChange = (reason) => {
+    this.props.onChange && this.props.onChange(this, reason);
   };
+
+  clearCanvas = () => {
+    this.clear();
+    this.triggerOnChange("CLEAR");
+  }
 
   clear = () => {
     this.lines = [];
@@ -471,8 +559,6 @@ export default class extends PureComponent {
       this.canvas.temp.width,
       this.canvas.temp.height
     );
-
-    this.triggerOnChange();
   };
 
   loop = ({ once = false } = {}) => {
