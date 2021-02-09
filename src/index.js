@@ -94,6 +94,7 @@ export default class extends PureComponent {
 
     this.points = [];
     this.lines = [];
+    this.newPoints = [];
 
     this.mouseHasMoved = true;
     this.valuesChanged = true;
@@ -203,7 +204,7 @@ export default class extends PureComponent {
   getUpdateData = () => {
     // Construct and return the stringified saveData object
     return JSON.stringify({
-      line: {points: [...this.points], brushColor: this.props.brushColor, brushRadius: this.props.brushRadius},
+      points: {newPoints: [...this.newPoints], brushColor: this.props.brushColor, brushRadius: this.props.brushRadius},
       width: this.props.canvasWidth,
       height: this.props.canvasHeight
     });
@@ -231,20 +232,24 @@ export default class extends PureComponent {
     }
   }
 
-  drawUpdate = ({ line, width, height }) => {
+  drawUpdate = ({ points, width, height }) => {
+
+    if (!points.newPoints || points.newPoints.length === 0) return;
+
     if (
         width === this.props.canvasWidth &&
         height === this.props.canvasHeight
     ) {
-      const {points, brushColor, brushRadius} = line;
+      const {newPoints, brushColor, brushRadius} = points;
+      // Add to total points
+      this.points = [...this.points, ...newPoints];
       // Draw current points
       this.drawPoints({
-        points: points,
+        points: this.points,
         brushColor: brushColor,
         brushRadius: brushRadius
       });
       // Save line with the drawn points
-      this.points = points;
       this.brushColor = brushColor;
       this.brushRadius = brushRadius;
     } else {
@@ -253,23 +258,24 @@ export default class extends PureComponent {
       const scaleY = this.props.canvasHeight / height;
       const scaleAvg = (scaleX + scaleY) / 2;
 
-      const {points, brushColor, brushRadius} =
+      const {newPoints, brushColor, brushRadius} =
           {
-            ...line,
-            points: line.points.map(p => ({
+            ...points,
+            newPoints: points.newPoints.map(p => ({
               x: p.x * scaleX,
               y: p.y * scaleY
             })),
-            brushRadius: line.brushRadius * scaleAvg
+            brushRadius: points.brushRadius * scaleAvg
           };
+      // Add to total points
+      this.points = [...this.points, ...newPoints];
       // Draw current points
       this.drawPoints({
-        points: points,
+        points: this.points,
         brushColor: brushColor,
         brushRadius: brushRadius
       });
       // Save line with the drawn points
-      this.points = points;
       this.brushColor = brushColor;
       this.brushRadius = brushRadius;
     }
@@ -453,12 +459,16 @@ export default class extends PureComponent {
     ) {
       // Start drawing and add point
       this.isDrawing = true;
-      this.points.push(this.lazy.brush.toObject());
+      const newPoint = this.lazy.brush.toObject();
+      this.points.push(newPoint);
+      this.newPoints.push(newPoint);
     }
 
     if (this.isDrawing) {
       // Add new point
-      this.points.push(this.lazy.brush.toObject());
+      const newPoint = this.lazy.brush.toObject();
+      this.points.push(newPoint);
+      this.newPoints.push(newPoint);
 
       // Draw current points
       this.drawPoints({
@@ -469,6 +479,7 @@ export default class extends PureComponent {
     }
 
     this.mouseHasMoved = true;
+    this.newPoints = [];
   };
 
   drawPoints = ({ points, brushColor, brushRadius }) => {
